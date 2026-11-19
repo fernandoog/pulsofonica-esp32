@@ -122,18 +122,16 @@ def collect_ids(fragment: str) -> set[int]:
     return {int(x) for x in re.findall(r'\bId="(\d+)"', fragment)}
 
 
-def remap_ids(fragment: str, id_offset: int, id_map: dict[int, int]) -> tuple[str, int]:
-    ids = sorted(collect_ids(fragment))
-    for old in ids:
-        if old not in id_map:
-            id_map[old] = id_offset
-            id_offset += 1
+def reindex_ids_sequential(fragment: str, next_id: int) -> tuple[str, int]:
+    """Cada atributo Id= debe ser único (listas Lom); no reutilizar por valor antiguo."""
 
-    def replace(match: re.Match[str]) -> str:
-        old = int(match.group(1))
-        return f'Id="{id_map[old]}"'
+    def replace(_match: re.Match[str]) -> str:
+        nonlocal next_id
+        assigned = next_id
+        next_id += 1
+        return f'Id="{assigned}"'
 
-    return re.sub(r'\bId="(\d+)"', replace, fragment), id_offset
+    return re.sub(r'\bId="\d+"', replace, fragment), next_id
 
 
 def reindex_device_automation(device_xml: str, next_id: int) -> tuple[str, int]:
@@ -301,15 +299,7 @@ def patch_track(
     track: TrackDef,
     track_index: int,
     next_pointee: int,
-    id_map: dict[int, int],
 ) -> tuple[str, int]:
-    track_xml, next_pointee = remap_ids(track_xml, next_pointee, id_map)
-    track_xml = re.sub(
-        r"<MidiTrack Id=\"\d+\"",
-        f'<MidiTrack Id="{track_index}"',
-        track_xml,
-        count=1,
-    )
     track_xml = re.sub(
         r"<EffectiveName Value=\"[^\"]*\" />\s*"
         r"<UserName Value=\"[^\"]*\" />\s*"
@@ -344,15 +334,10 @@ def patch_track(
 
     devices: list[str] = []
     for adv in track.midi_fx:
-        dev, next_pointee = reindex_device_automation(load_device_block(adv), next_pointee)
-        devices.append(dev)
-    inst, next_pointee = reindex_device_automation(
-        load_device_block(track.instrument_adv), next_pointee
-    )
-    devices.append(inst)
+        devices.append(load_device_block(adv))
+    devices.append(load_device_block(track.instrument_adv))
     for adv in track.audio_fx:
-        dev, next_pointee = reindex_device_automation(load_device_block(adv), next_pointee)
-        devices.append(dev)
+        devices.append(load_device_block(adv))
 
     chain = "\n\t\t\t\t\t\t\t".join(devices)
     track_xml = track_xml.replace(
@@ -373,13 +358,20 @@ def patch_track(
 \t\t\t\t\t\t\t\t<HasStop Value="true" />
 \t\t\t\t\t\t\t</ClipSlot>"""
         track_xml = re.sub(
-            r"<ClipSlotList>\s*<ClipSlot Id=\"0\">.*?</ClipSlot>\s*</ClipSlotList>",
-            f"<ClipSlotList>\n\t\t\t\t\t\t{clip_slot}\n\t\t\t\t\t</ClipSlotList>",
+            r"(<MainSequencer>.*?<ClipSlotList>)\s*<ClipSlot Id=\"0\">.*?</ClipSlot>\s*(</ClipSlotList>)",
+            rf"\1\n\t\t\t\t\t\t{clip_slot}\n\t\t\t\t\t\2",
             track_xml,
             count=1,
             flags=re.DOTALL,
         )
 
+    track_xml, next_pointee = reindex_ids_sequential(track_xml, next_pointee)
+    track_xml = re.sub(
+        r"<MidiTrack Id=\"\d+\"",
+        f'<MidiTrack Id="{track_index}"',
+        track_xml,
+        count=1,
+    )
     return track_xml, next_pointee
 
 
@@ -389,7 +381,8 @@ def build_live_set() -> str:
     next_id = int(re.search(r'<NextPointeeId Value="(\d+)"', base).group(1))
     built_tracks: list[str] = []
     for idx, tdef in enumerate(TRACKS):
-        track_xml, next_id = patch_track(track_tpl, tdef, idx, next_id, {})
+        # Cada pista necesita IDs Lom únicos; compartir id_map duplicaba AutomationTarget.
+        track_xml, next_id = patch_track(track_tpl, tdef, idx, next_id)
         built_tracks.append(track_xml)
 
     tracks_block = "\n\t\t\t".join(built_tracks)
@@ -420,7 +413,7 @@ def build_live_set() -> str:
         r"<Annotation Value=\"\" />\s*<SoloOrPflSavedValue",
         (
             f'<Annotation Value="{PROJECT_TITLE}: ESP32+AD8232 — latido como instrumento. '
-            'Mapea CC en Ableton. Lanzar escena 1 + electrodos en muñecas/tobillo." />\n\t\t'
+            'Lanzar escena 1. Mapea CC en Ableton." />\n\t\t'
             "<SoloOrPflSavedValue"
         ),
         xml,
