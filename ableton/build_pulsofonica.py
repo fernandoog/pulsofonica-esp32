@@ -387,11 +387,9 @@ def build_live_set() -> str:
     base = gzip.open(BASE_ALS, "rb").read().decode("utf-8")
     track_tpl = extract_midi_track(base)
     next_id = int(re.search(r'<NextPointeeId Value="(\d+)"', base).group(1))
-    id_map: dict[int, int] = {}
-
     built_tracks: list[str] = []
     for idx, tdef in enumerate(TRACKS):
-        track_xml, next_id = patch_track(track_tpl, tdef, idx, next_id, id_map)
+        track_xml, next_id = patch_track(track_tpl, tdef, idx, next_id, {})
         built_tracks.append(track_xml)
 
     tracks_block = "\n\t\t\t".join(built_tracks)
