@@ -332,20 +332,6 @@ def patch_track(
         count=1,
     )
 
-    devices: list[str] = []
-    for adv in track.midi_fx:
-        devices.append(load_device_block(adv))
-    devices.append(load_device_block(track.instrument_adv))
-    for adv in track.audio_fx:
-        devices.append(load_device_block(adv))
-
-    chain = "\n\t\t\t\t\t\t\t".join(devices)
-    track_xml = track_xml.replace(
-        "<DeviceChain>\n\t\t\t\t\t\t<Devices />\n\t\t\t\t\t\t<SignalModulations />",
-        f"<DeviceChain>\n\t\t\t\t\t\t<Devices>\n\t\t\t\t\t\t\t{chain}\n\t\t\t\t\t\t</Devices>\n\t\t\t\t\t\t<SignalModulations />",
-        1,
-    )
-
     if track.chord_notes:
         clip = build_drone_clip(9000 + track_index, f"Concierto — {track.name}", track.chord_notes, track.velocity)
         clip_slot = f"""<ClipSlot Id="0">
@@ -365,7 +351,28 @@ def patch_track(
             flags=re.DOTALL,
         )
 
+    # Reindexar pista/clips; los dispositivos van después para no romper el grafo Lom (evita crash).
     track_xml, next_pointee = reindex_ids_sequential(track_xml, next_pointee)
+
+    devices: list[str] = []
+    for adv in track.midi_fx:
+        dev, next_pointee = reindex_device_automation(load_device_block(adv), next_pointee)
+        devices.append(dev)
+    dev, next_pointee = reindex_device_automation(
+        load_device_block(track.instrument_adv), next_pointee
+    )
+    devices.append(dev)
+    for adv in track.audio_fx:
+        dev, next_pointee = reindex_device_automation(load_device_block(adv), next_pointee)
+        devices.append(dev)
+
+    chain = "\n\t\t\t\t\t\t\t".join(devices)
+    track_xml = track_xml.replace(
+        "<DeviceChain>\n\t\t\t\t\t\t<Devices />\n\t\t\t\t\t\t<SignalModulations />",
+        f"<DeviceChain>\n\t\t\t\t\t\t<Devices>\n\t\t\t\t\t\t\t{chain}\n\t\t\t\t\t\t</Devices>\n\t\t\t\t\t\t<SignalModulations />",
+        1,
+    )
+
     track_xml = re.sub(
         r"<MidiTrack Id=\"\d+\"",
         f'<MidiTrack Id="{track_index}"',
