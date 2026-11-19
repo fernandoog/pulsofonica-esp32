@@ -249,7 +249,7 @@ def build_drone_clip(
 \t\t\t\t\t\t\t\t<Legato Value="true" />
 \t\t\t\t\t\t\t\t<Ram Value="false" />
 \t\t\t\t\t\t\t\t<GrooveSettings>
-\t\t\t\t\t\t\t\t\t<GrooveId Value="0" />
+\t\t\t\t\t\t\t\t\t<GrooveId Value="-1" />
 \t\t\t\t\t\t\t\t</GrooveSettings>
 \t\t\t\t\t\t\t\t<Disabled Value="false" />
 \t\t\t\t\t\t\t\t<VelocityAmount Value="0" />
