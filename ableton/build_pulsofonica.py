@@ -337,7 +337,7 @@ def patch_track(
     vol = track.volume
     track_xml = re.sub(
         r"(<Volume>\s*<LomId Value=\"0\" />\s*)<Manual Value=\"[\d.]+\" />",
-        rf"\1<Manual Value=\"{vol}\" />",
+        rf'\1<Manual Value="{vol}" />',
         track_xml,
         count=1,
     )
@@ -408,7 +408,7 @@ def build_live_set() -> str:
     )
     xml = re.sub(
         r"(<Tempo>\s*<LomId Value=\"0\" />\s*)<Manual Value=\"[\d.]+\" />",
-        rf"\1<Manual Value=\"{TEMPO}\" />",
+        rf'\1<Manual Value="{TEMPO}" />',
         xml,
         count=1,
     )
